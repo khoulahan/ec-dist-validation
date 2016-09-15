@@ -61,8 +61,8 @@ for pdb_record in SeqIO.parse(options.pdb, "pdb-seqres"):
 alignment_num = 0
 fasta_num = 0
 pdb_num = 0
-indexes = pd.DataFrame({'PDB': np.repeat('-', len(str(best_alignment[0][1]))),
-                        'Fasta':np.repeat('-', len(str(best_alignment[0][0])))})
+indexes = pd.DataFrame({'Fasta':np.repeat('-', len(str(best_alignment[0][0]))),
+                        'PDB': np.repeat('-', len(str(best_alignment[0][1])))})
 for p,f in zip(str(best_alignment[0][0]),str(best_alignment[0][1])):
     if c != '-':
         indexes.iat[alignment_num,0] = fasta_num 
