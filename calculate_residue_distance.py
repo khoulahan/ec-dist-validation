@@ -29,32 +29,58 @@ parser.add_option("-a", "--atom", dest="atom", help="atom to calculate distance 
 parser = PDB.PDBParser()
 
 # Parse the structure into a PDB.Structure object
-#structure = parser.get_structure('Test', "/home/keh/PDB/test_subset/Test.pdb")
-structure = parser.get_structure(options.code, options.pdb)
+structure = parser.get_structure('Test', "/home/keh/PDB/ZevTest/VAT_Hexamer_refined_210316-updatedATP_SHEET_HELIX_ANNOTATED.pdb")
+#structure = parser.get_structure(options.code, options.pdb)
 
 ### GET FASTA SEQUENCE ############################################################################
 # get sequence from fasta file used to calculate EC couplings
-#for fasta_record in SeqIO.parse("/home/keh/PDB/test_subset/Test.fasta", "fasta"):
-for fasta_record in SeqIO.parse(options.fasta, "fasta"):
+for fasta_record in SeqIO.parse("/home/keh/PDB/ZevTest/VAT_sequence.fasta", "fasta"):
+#for fasta_record in SeqIO.parse(options.fasta, "fasta"):
     fasta_sequence = fasta_record.seq
 
+### CONVERT THREE LETTER CODE TO ONE LETTER #######################################################
+d = {'CYS': 'C', 'ASP': 'D', 'SER': 'S', 'GLN': 'Q', 'LYS': 'K',
+     'ILE': 'I', 'PRO': 'P', 'THR': 'T', 'PHE': 'F', 'ASN': 'N', 
+     'GLY': 'G', 'HIS': 'H', 'LEU': 'L', 'ARG': 'R', 'TRP': 'W', 
+     'ALA': 'A', 'VAL':'V', 'GLU': 'E', 'TYR': 'Y', 'MET': 'M'}
+def shorten(x):
+    if len(x) % 3 != 0: 
+        raise ValueError('Input length should be a multiple of three')
+    y = ''
+    for i in range(len(x)/3):
+            y += d[x[3*i:3*i+3]]
+    return y
+
 ### GET PDB SEQUENCE AND ALIGN WITH FASTA #########################################################
-# get sequence from pdb file 
+# get sequence from pdb file
+all_sequences = {}
 score_max = 0
-record_num = 0
-#for pdb_record in SeqIO.parse("/home/keh/PDB/test_subset/Test.pdb", "pdb-seqres"):
-for pdb_record in SeqIO.parse(options.pdb, "pdb-seqres"):
-    pdb_sequence = pdb_record.seq
-    # align sequence from pdb to fasta file sequence
-    alignment = pairwise2.align.localxx(pdb_sequence, fasta_sequence, one_alignment_only=True)
-    # check is score of alignment is greater than the previous sequence 
-    # this only applies when there are multiple chains reported in a pdb file
-    if alignment[0][2] > score_max:
-        score = alignment[0][2]
-        chain_num = record_num
-        score_max = score
-        best_alignment = alignment
-    record_num += 1
+# go through each chain, extract the amino acid sequence and find chain with the best
+# alignment to the fasta file
+# only uses the first model (can update this if necessary)
+chain = model[0]
+for chain in model:
+    residues = []
+    for residue in chain:
+        # get residue name, check that it is a valid amino acid and convert to single letter 
+        # amino acid code, het atoms do not get included in sequence
+        residue_code = residue.get_resname()
+        if residue_code in d:
+            residues.append(shorten(residue_code))
+        else:
+            continue
+    # check is any residues
+    if len(residues) > 0:
+        chain_sequence = ''.join(residues)
+        # align the chain sequence with the fasta (or full sequence), use penalties for gaps
+        alignment = pairwise2.align.globalms(fasta_sequence, chain_sequence, 2, 0, -.5, -.1)
+        # check is alignment is better than previous alignments 
+        # keeps first alignment if there is a tie
+        if alignment[0][2] > score_max:
+            chain_id = chain.get_id()
+            score_max = alignment[0][2]
+            best_alignment = alignment
+        all_sequences[chain.get_id()] = ''.join(residues)
 
 ## RE-INDEX FASTA TO MATCH PDB ALIGNMENT ##########################################################
 # re-index fasta residue indexing according to alignment
@@ -63,8 +89,8 @@ fasta_num = 0
 pdb_num = 0
 indexes = pd.DataFrame({'Fasta':np.repeat('-', len(str(best_alignment[0][0]))),
                         'PDB': np.repeat('-', len(str(best_alignment[0][1])))})
-for p,f in zip(str(best_alignment[0][0]),str(best_alignment[0][1])):
-    if c != '-':
+for f,p in zip(str(best_alignment[0][0]),str(best_alignment[0][1])):
+    if f != '-':
         indexes.iat[alignment_num,0] = fasta_num 
         fasta_num += 1   
     if p != '-':
