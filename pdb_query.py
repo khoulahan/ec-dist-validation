@@ -9,6 +9,7 @@
 # No ligand in structure
 # Only protein in structure
 # Molecular Weight between 25000-70000 Da
+# Wildtype 
 # Applies 90% similarity filter to ensure proteins with 90% similarity are 
 # represented by only one structure
 #
