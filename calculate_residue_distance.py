@@ -29,13 +29,11 @@ parser.add_option("-a", "--atom", dest="atom", help="atom to calculate distance 
 parser = PDB.PDBParser()
 
 # Parse the structure into a PDB.Structure object
-structure = parser.get_structure('Test', "/home/keh/PDB/ZevTest/VAT_Hexamer_refined_210316-updatedATP_SHEET_HELIX_ANNOTATED.pdb")
-#structure = parser.get_structure(options.code, options.pdb)
+structure = parser.get_structure(options.code, options.pdb)
 
 ### GET FASTA SEQUENCE ############################################################################
 # get sequence from fasta file used to calculate EC couplings
-for fasta_record in SeqIO.parse("/home/keh/PDB/ZevTest/VAT_sequence.fasta", "fasta"):
-#for fasta_record in SeqIO.parse(options.fasta, "fasta"):
+for fasta_record in SeqIO.parse(options.fasta, "fasta"):
     fasta_sequence = fasta_record.seq
 
 ### CONVERT THREE LETTER CODE TO ONE LETTER #######################################################
@@ -57,8 +55,8 @@ all_sequences = {}
 score_max = 0
 # go through each chain, extract the amino acid sequence and find chain with the best
 # alignment to the fasta file
-# only uses the first model (can update this if necessary)
-chain = model[0]
+# only uses the first model (can update this if necessary   )
+model = structure[0]
 for chain in model:
     residues = []
     for residue in chain:
@@ -73,7 +71,10 @@ for chain in model:
     if len(residues) > 0:
         chain_sequence = ''.join(residues)
         # align the chain sequence with the fasta (or full sequence), use penalties for gaps
-        alignment = pairwise2.align.globalms(fasta_sequence, chain_sequence, 2, 0, -.5, -.1)
+        # point system:
+        # identical characters = 2 points; non-identical = 0 points, opening gap = -0.5, extending gap = -.1
+        alignment = pairwise2.align.globalms(fasta_sequence, chain_sequence, 2, 0, 
+            -.5, -.1, one_alignment_only = True)
         # check is alignment is better than previous alignments 
         # keeps first alignment if there is a tie
         if alignment[0][2] > score_max:
@@ -100,7 +101,6 @@ for f,p in zip(str(best_alignment[0][0]),str(best_alignment[0][1])):
 
 ### GET EC SCORES #################################################################################        
 # read in EC scores file 
-#ecscores = open("/home/keh/PDB/test_subset/Test_CouplingScoresModified.csv", "r")
 ecscores = open(options.ecscores, "r")
 
 # open file for writing 
@@ -109,10 +109,7 @@ missing_file = open(''.join([options.code, "_MissingResidues.txt"]), "w")
 
 ### EXTRACT CHAIN #################################################################################
 # get chain corresponding to best alignment 
-chains = structure.get_chains()
-chain = chains.next()
-for i in range(chain_num):
-    chain = chains.next()
+chain = model[chain_id]
 
 ### CALCULATE DISTANCES ###########################################################################
 # iterate over coupled residues
@@ -121,8 +118,8 @@ for line in ecscores:
     # minus one ev coupling index because python is 0 based
     residueIndex = line.split(",")
     if indexes.iloc[int(residueIndex[0])-1,1] != '-' and indexes.iloc[int(residueIndex[1])-1,1] != '-':
-        residueOneIndex = int(indexes.iloc[int(residueIndex[0])-1,0])
-        residueTwoIndex = int(indexes.iloc[int(residueIndex[1])-1,0])
+        residueOneIndex = int(indexes.loc[indexes['Fasta'] == int(residueIndex[0])-1,'PDB'])
+        residueTwoIndex = int(indexes.loc[indexes['Fasta'] == int(residueIndex[1])-1,'PDB'])
     else:
         # if either residue is not present in pdb, write line to missing file
         missingFile.write(line+"\n")
@@ -132,14 +129,12 @@ for line in ecscores:
     # find the residues in the PDB file
     residueOnePDB = chain.child_list[residueOneIndex]
     residueTwoPDB = chain.child_list[residueTwoIndex]
-    print residueOnePDB
-    print residueTwoPDB
     # calculate alpha carbon distance
-    betaDist = residueOnePDB[options.atom] - residueTwoPDB[options.atom]
+    atomDist = residueOnePDB[options.atom] - residueTwoPDB[options.atom]
     # write to file
-    results = [str(residueOnePDB.id[1]), residueOnePDB.resname, str(residueTwoPDB.id[1]), residueTwoPDB.resname, str(ECscore), str(betaDist)]
-    resultsLine = "\t".join(results)
-    resultsFile.write(resultsLine+"\n")
+    results = [str(residueOnePDB.id[1]), residueOnePDB.resname, str(residueTwoPDB.id[1]), residueTwoPDB.resname, str(ECscore), str(atomDist)]
+    results_line = "\t".join(results)
+    results_file.write(results_line+"\n")
 
 # close file
 missing_file.close()
