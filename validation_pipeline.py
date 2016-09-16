@@ -16,6 +16,7 @@ from subprocess import call
 
 ### COMMAND LINE ARGUMENTS ########################################################################
 parser = OptionParser()
+parser.add_option("-q", "--query", dest="query", help="PDB database xml query", metavar="FILE")
 parser.add_option("-p", "--pdb", dest="pdb", help="PDB file of protein of interest", metavar="FILE")
 parser.add_option("-c", "--code", dest="code", help="pdb code of structure", default = "0000")
 parser.add_option("-t", "--threshold", dest="threshold", help="EC score threshold")
@@ -26,7 +27,7 @@ parser.add_option("-t", "--threshold", dest="threshold", help="EC score threshol
 # open file handle  
 pdb_id_file = open("pdb_ids.txt", "w")
 # run query and write IDs to file
-call(["python", "pdb_query.py"], stdout=pdb_id_file)
+call(["python", "pdb_query.py", "-q", options.query], stdout=pdb_id_file)
 
 # read pdb ids file 
 pdb_ids = open("pdb_ids.txt","r")
