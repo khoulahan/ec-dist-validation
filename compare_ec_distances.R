@@ -5,6 +5,8 @@
 ### PREAMBLE ######################################################################################
 # load libraries
 library(argparse);
+library(BoutrosLab.plotting.general);
+library(seqinr);
 
 # general parameters
 date <- Sys.Date();
@@ -25,73 +27,93 @@ pdbIds <- read.delim(
     header = FALSE
     );
 # iterate over all ids and read in distance values 
-query.distances <- apply(
+metrics <- apply(
     pdbIds,
     1,
     function(id) {
+        # read in distance file
         tmp <- read.delim(
             paste0(id, "_Distances.txt"),
             sep = '\t',
             header = FALSE
             );
         # extract only residues above specified EC score threshold
-        # return only sum of distances that pass threshold 
-        sum(tmp[tmp[,5] >= args$threshold,6])
-        })
-query.distances <- unlist(query.distances);
+        # find median ec score, distance and number of residues above
+        # the ec threshold 
 
+        tmp <- tmp[tmp[,5] >= args$threshold,]
+        # return metrics as dataframe
+        data.frame(
+            median = median(tmp[,6]),
+            variance = var(tmp[,6]),
+            group = 'PDB'
+            );
+metrics <- do.call('rbind', metrics);
+
+### CALCULATE METRICS FOR PROTEIN OF INTEREST #####################################################
 # read in distances for protein of interest
-protein.distances <- read.delim(
+poi.distances <- read.delim(
     paste0(args$protein, "_Distances.txt"),
     sep = '\t',
     header = FALSE
     );
 # only keep residues above specified EC score threshold
-protein.distances   <- protein.distances[protein.distances[,5] > args$threshold,6];
-protein.sum         <- sum(protein.distances);
+poi.distances   <- poi.distances[poi.distances[,5] > args$threshold,];
+poi.metrics     <- data.frame(
+    median = median(poi.distances[,6]),
+    variance = var(poi.distances[,6]),
+    group = 'POI'
+    );
 
-# check that protein sum falls within range of pdb database
-# if not, do not produce plot
-if (protein.sum > max(query.distances)) {
-    cat("Distances calculated for protein of interest larger than PDB distribution.\n");
-    cat("Failed to produce density plot ...\n")
-} else {
-    # find protein percentile and round to nearest hundredth 
-    protein.percentile <- round(
-        1-ecdf(query.distances)(protein.sum),
-        digits = 2
-        );
-    # generate density plot
-    create.densityplot(
-        x = data.frame(query.distances),
-        filename = paste0(
-            args$protein,
-            '_DistancesRelativeToPDB.tiff'
-            ),
-        xlab.label = 'Sum of CA Distances',
-        abline.v = protein.sum,
-        abline.col = 'darkorchid4',
-        legend = list(
-            inside = list(
-                fun = draw.key,
-                args = list(
-                    key = list(
-                        points = list(
-                            col = 'darkorchid4',
-                            pch = 21,
-                            cex = 0.8,
-                            fill = 'darkorchid4'
-                            ),
-                        text = list(
-                            lab = paste0(args$protein,': ', protein.percentile, " Percentile\n",length(protein.distances), " Residues Used")
-                            ),
-                        cex = 1
-                        )
-                    ),
-                x = 0.50,
-                y = 0.97,
-                draw = FALSE
-                )
+poi.percentile <- round(
+    1-ecdf(metrics$median)(poi.metrics$median),
+    digits = 2
+    );
+
+# combine poi with rest of metrics
+metrics = rbind(metrics, poi.metrics)
+
+### GENERATE SCATTERPLOT ##########################################################################
+# order by median distance 
+metrics <- metrics[order(metrics$median, decreasing = TRUE),];
+metrics$index <-1:nrow(metrics);
+# create scatterplot
+create.scatterplot(
+    formula = median ~ index,
+    data = metrics,
+    groups = metrics$group,
+    filename = args$filename,
+    yaxis.cex = 1.5,
+    xaxis.cex = 1.5,
+    ylab.label = 'Median Distance Between CA',
+    ylab.cex = 1.5,
+    xlab.label = 'Index',
+    xlab.cex = 1.5,
+    y.error.up = metrics$variance,
+    error.bar.lwd = 1,
+    error.whisker.angle = 120,
+    y.error.bar.col = "black",
+    col = c('black','firebrick3'),
+    legend = list(
+        inside = list(
+            fun = draw.key,
+            args = list(
+                key = list(
+                    points = list(
+                        col = 'firebrick3',
+                        pch = 21,
+                        cex = 0.8,
+                        fill = 'firebrick3'
+                        ),
+                    text = list(
+                        lab = paste0(args$protein,': ', poi.percentile, ' Percentile')
+                        ),
+                    cex = 1
+                    )
+                ),
+            x = 0.60,
+            y = 0.97,
+            draw = FALSE
             )
-        );
-    }
+        )
+    )

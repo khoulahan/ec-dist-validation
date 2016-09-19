@@ -106,6 +106,7 @@ ecscores = open(options.ecscores, "r")
 # open file for writing 
 results_file = open(''.join([options.code, "_Distances.txt"]), "w")
 missing_file = open(''.join([options.code, "_MissingResidues.txt"]), "w")
+filter_file = open(''.join([options.code, "_FilterFailed.txt"]), "w")
 
 ### EXTRACT CHAIN #################################################################################
 # get chain corresponding to best alignment 
@@ -117,12 +118,16 @@ for line in ecscores:
     # find residue coordinates from ev coupling
     # minus one ev coupling index because python is 0 based
     residueIndex = line.split(",")
+    # check that all couplings pass filters
+    if all(v == '0' for v in residueIndex[6:10]) != True:
+        filter_file.write(line)
+        continue
     if indexes.iloc[int(residueIndex[0])-1,1] != '-' and indexes.iloc[int(residueIndex[1])-1,1] != '-':
         residueOneIndex = int(indexes.loc[indexes['Fasta'] == int(residueIndex[0])-1,'PDB'])
         residueTwoIndex = int(indexes.loc[indexes['Fasta'] == int(residueIndex[1])-1,'PDB'])
     else:
         # if either residue is not present in pdb, write line to missing file
-        missingFile.write(line+"\n")
+        missing_file.write(line)
         continue
     # extract EC score to output along with distance
     ECscore = residueIndex[2]
@@ -138,5 +143,6 @@ for line in ecscores:
 
 # close file
 missing_file.close()
+filter_file.close()
 results_file.close()
 
